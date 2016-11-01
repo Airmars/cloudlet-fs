@@ -15,7 +15,7 @@ import os
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
-class Loopback(LoggingMixIn, Operations):
+class Cloudlet(LoggingMixIn, Operations):
     def __init__(self, serverip="127.0.0.1", serverport="42014"):
         self.serverip = serverip
         self.serverport = serverport
@@ -31,10 +31,15 @@ class Loopback(LoggingMixIn, Operations):
     #        raise FuseOSError(EACCES)
 
     def chmod(self, path, mode):
-      return self.server.chmod(path, mode)
+      (success, rval) = self.server.chmod(path, mode)
+      if success: return rval
+      else: raise FuseOSError(rval)
 
-    #def create(self, path, mode):
-    #    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    def chown(self, path, uid, gid):
+      return self.server.chown(path, uid, gid)
+
+    def create(self, path, mode):
+        return self.server.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
 
     #def flush(self, path, fh):
     #    return os.fsync(fh)
@@ -50,15 +55,13 @@ class Loopback(LoggingMixIn, Operations):
       if success: return rval
       else: raise FuseOSError(rval)
 
-    #getxattr = None
+    def link(self, target, source):
+        return os.link(source, target)
 
-    #def link(self, target, source):
-    #    return os.link(source, target)
+    def mkdir(self, path, mode):
+      return self.server.mkdir(path, mode)
 
-    #listxattr = None
-    #mkdir = os.mkdir
     #mknod = os.mknod
-    #open = os.open
 
     def read(self, path, size, offset, fd):
         self.server.lseek(fd, offset, 0)
@@ -67,7 +70,8 @@ class Loopback(LoggingMixIn, Operations):
     def readdir(self, path, fh):
       return self.server.readdir(path, fh)
 
-    #readlink = os.readlink
+    def readlink(self, path):
+      return self.server.readlink(path)
 
     #def release(self, path, fh):
     #    return os.close(fh)
@@ -87,9 +91,10 @@ class Loopback(LoggingMixIn, Operations):
     #def symlink(self, target, source):
     #    return os.symlink(source, target)
 
-    #def truncate(self, path, length, fh=None):
-    #    with open(path, 'r+') as f:
-    #        f.truncate(length)
+    def truncate(self, path, length, fh=None):
+      (succes, rval) = self.server.ftruncate(path, length)
+      if success: return rval
+      else: raise FuseOSError(rval)
 
     def unlink(self, path):
       return self.server.unlink(path)
@@ -106,4 +111,4 @@ if __name__ == '__main__':
         exit(1)
 
     logging.basicConfig(level=logging.WARN)
-    fuse = FUSE(Loopback(*argv[2:]), argv[1], foreground=True)
+    fuse = FUSE(Cloudlet(*argv[2:]), argv[1], foreground=True)

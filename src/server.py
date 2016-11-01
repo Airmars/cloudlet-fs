@@ -15,7 +15,8 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 
 class FuseServer(object):
   def __init__(self, root, serverip="", serverport=42014):
-    self.server = SimpleXMLRPCServer((serverip, int(serverport)), requestHandler=RequestHandler)
+    self.server = SimpleXMLRPCServer((serverip, int(serverport)), 
+                                     requestHandler=RequestHandler, logRequests=False)
     self.server.register_instance(FSInterface(root))
     print("Listening on port {}".format(str(serverport)))
     self.server.serve_forever()
@@ -26,11 +27,27 @@ class FSInterface(object):
 
   def chmod(self, path, mode):
     print("chmod", path, mode)
-    return os.chmod(self.root + path, mode)
+    try:
+      os.chmod(self.root + path, mode)
+      return (True, 0)
+    except OSError as e:
+      return (False, e.errno)
+
+  def chown(self, path, mode):
+    print("chown", path, mode)
+    return os.chown(self.root + path, mode)
 
   def close(self, fd):
     print ("close", fd)
     return os.close(fd)
+
+  def ftruncate(self, path, length):
+    print ("ftruncate", path, length)
+    try:
+      fd = os.open(self.root + path, 0, 0) 
+      return (True, os.ftruncate(fd, length))
+    except OSError as e:
+      return (False, e.errno)
 
   def open(self, path, flags, mode=0777):
     print("open", path, flags, mode)
@@ -41,7 +58,7 @@ class FSInterface(object):
     return os.lseek(fd, pos, how)
 
   def lstat(self, path):
-    print("lstat", path)
+    #print("lstat", path)
     try:
       st = os.lstat(self.root + path)
       return (True, dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
@@ -49,21 +66,29 @@ class FSInterface(object):
     except OSError as e:
       return (False, e.errno) 
 
+  def mkdir(self, path, mode):
+    print("mkdir", path, mode)
+    os.mkdir(self.root + path, mode)
+    return 0
 
   def read(self, fd, n):
     print("read", fd, n)
     return Binary(os.read(fd, n))
 
   def readdir(self, path, fh):
-    print("readdir", path, fh)
+    #print("readdir", path, fh)
     return ['.', '..'] + os.listdir(self.root + path)
+
+  def readlink(self, path):
+    print("readlink", path)
+    return os.readlink(self.root + path)
 
   def rename(self, old, new):
     print("rename", old, new)
     return os.rename(self.root + old, self.root + new) 
 
   def rmdir(self, path):
-    print("rmdir", path, fh)
+    print("rmdir", path)
     os.rmdir(self.root + path)
     return 0
 
